@@ -1,5 +1,10 @@
 import Image from "next/image";
+import FlowCanvas from "@/components/FlowCanvas";
 
 export default function Home() {
-  return <div>Started</div>;
+  return (
+    <div className="h-screen w-full">
+      <FlowCanvas />
+    </div>
+  );
 }
