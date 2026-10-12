@@ -7,7 +7,9 @@
     ".": "./src/index.ts",
     "./dsl": "./src/dsl.ts",
     "./expr": "./src/expr.ts",
-    "./compile": "./src/compile.ts"
+    "./compile": "./src/compile.ts",
+    "./run": "./src/run.ts",
+    "./samples": "./src/samples.ts"
   },
   "scripts": {
     "test": "vitest run",
