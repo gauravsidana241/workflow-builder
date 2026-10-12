@@ -13,5 +13,8 @@
     "db:migrate": "npm run db:migrate -w web",
     "test": "npm test -w shared && npm test -w worker",
     "typecheck": "npm run typecheck -w shared && npm run typecheck -w worker && npm run typecheck -w web"
+  },
+  "optionalDependencies": {
+    "@rolldown/binding-win32-x64-msvc": "^1.2.13"
   }
 }

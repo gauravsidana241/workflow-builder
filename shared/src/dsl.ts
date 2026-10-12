@@ -111,7 +111,7 @@ export interface NodeSpec {
   label: string;
   description: string;
   category: NodeCategory;
-  /** Output handles. Loops use "body" (run per iteration) and "done". */
+  /** Output handles, left to right. Loops use "done" (continue) and "body" (run per iteration). */
   outputs: readonly string[];
   /** Outputs that must be connected for the workflow to be valid. */
   requiredOutputs: readonly string[];
@@ -158,7 +158,7 @@ export const NODE_SPECS = {
     label: "For Each",
     description: "Run the body once per item in a list.",
     category: "loops",
-    outputs: ["body", "done"],
+    outputs: ["done", "body"],
     requiredOutputs: ["body"],
     hasInput: true,
     expressionFields: ["items"],
@@ -168,7 +168,7 @@ export const NODE_SPECS = {
     label: "Repeat",
     description: "Run the body a fixed number of times.",
     category: "loops",
-    outputs: ["body", "done"],
+    outputs: ["done", "body"],
     requiredOutputs: ["body"],
     hasInput: true,
     expressionFields: ["times"],
@@ -178,7 +178,7 @@ export const NODE_SPECS = {
     label: "While",
     description: "Run the body while a condition is true.",
     category: "loops",
-    outputs: ["body", "done"],
+    outputs: ["done", "body"],
     requiredOutputs: ["body"],
     hasInput: true,
     expressionFields: ["condition"],
