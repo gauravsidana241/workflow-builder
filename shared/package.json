@@ -1,0 +1,23 @@
+{
+  "name": "@app/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Workflow DSL: node types, graph compiler/validator, expression evaluator",
+  "exports": {
+    ".": "./src/index.ts",
+    "./dsl": "./src/dsl.ts",
+    "./expr": "./src/expr.ts",
+    "./compile": "./src/compile.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "vitest": "^5.0.3"
+  }
+}
