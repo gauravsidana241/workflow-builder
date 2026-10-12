@@ -26,10 +26,12 @@ import {
   type Issue,
   type NodeType,
 } from "@app/shared";
-import type { SaveWorkflowResponse, WorkflowDetail } from "@/lib/types";
+import type { RunSummary, SaveWorkflowResponse, WorkflowDetail } from "@/lib/types";
 import { ConfigPanel, IssueNote } from "./ConfigPanel";
 import { EditorContext, type EditorContextValue } from "./EditorContext";
 import { DRAG_MIME, Palette } from "./Palette";
+import { RunPanel } from "./RunPanel";
+import { useRun } from "./useRun";
 import { WorkflowNode, type EditorNode } from "./WorkflowNode";
 
 // Defined once at module level: a new object every render would make React
@@ -56,11 +58,16 @@ function useColorMode(): "light" | "dark" {
   );
 }
 
-export function Editor({ workflow }: { workflow: WorkflowDetail }) {
+interface EditorProps {
+  workflow: WorkflowDetail;
+  initialRuns: RunSummary[];
+}
+
+export function Editor(props: EditorProps) {
   return (
     // useReactFlow() (for screen -> canvas coordinates) needs a provider above it.
     <ReactFlowProvider>
-      <EditorInner workflow={workflow} />
+      <EditorInner {...props} />
     </ReactFlowProvider>
   );
 }
@@ -72,7 +79,7 @@ function toFlowGraph(nodes: EditorNode[], edges: Edge[]): FlowGraph {
   };
 }
 
-function EditorInner({ workflow }: { workflow: WorkflowDetail }) {
+function EditorInner({ workflow, initialRuns }: EditorProps) {
   const { screenToFlowPosition, setCenter, getNode } = useReactFlow<EditorNode>();
   const colorMode = useColorMode();
   const [nodes, setNodes, onNodesChange] = useNodesState<EditorNode>(
@@ -221,9 +228,45 @@ function EditorInner({ workflow }: { workflow: WorkflowDetail }) {
     [getNode, setCenter, setNodes],
   );
 
+  // --- Running ---------------------------------------------------------------
+  const run = useRun(workflow.id, initialRuns);
+  const [tab, setTab] = useState<"node" | "run">("node");
+  const sampleInput = () => {
+    const trigger = nodes.find((n) => n.type === "trigger");
+    return typeof trigger?.data.sampleInput === "string" ? trigger.data.sampleInput : "{}";
+  };
+  const [inputText, setInputText] = useState(sampleInput);
+  const inputError = useMemo(() => {
+    try {
+      JSON.parse(inputText || "null");
+      return null;
+    } catch (err) {
+      return `Input isn't valid JSON: ${(err as Error).message}`;
+    }
+  }, [inputText]);
+  const cannotRunReason =
+    errorCount > 0
+      ? `Fix ${errorCount} error${errorCount > 1 ? "s" : ""} first.`
+      : inputError
+        ? "Fix the input JSON first."
+        : null;
+
+  const startRun = useCallback(async () => {
+    if (cannotRunReason) return;
+    setTab("run");
+    // Runs use the saved graph, so save pending edits first.
+    if (isDirty && !(await save())) return;
+    await run.start(JSON.parse(inputText || "null"));
+  }, [cannotRunReason, inputText, isDirty, run, save]);
+
+  const progress = run.detail?.progress;
   const context = useMemo<EditorContextValue>(
-    () => ({ issuesByNode, runStateByNode: {}, currentNodeId: null }),
-    [issuesByNode],
+    () => ({
+      issuesByNode,
+      runStateByNode: progress?.nodes ?? {},
+      currentNodeId: run.detail?.status === "running" ? (progress?.currentNodeId ?? null) : null,
+    }),
+    [issuesByNode, progress, run.detail?.status],
   );
 
   return (
@@ -252,6 +295,15 @@ function EditorInner({ workflow }: { workflow: WorkflowDetail }) {
             className="rounded border border-neutral-300 px-3 py-1 text-sm hover:bg-neutral-100 disabled:opacity-50 dark:border-neutral-700 dark:hover:bg-neutral-900"
           >
             Save
+          </button>
+          <button
+            type="button"
+            onClick={() => void startRun()}
+            disabled={!!cannotRunReason || run.starting}
+            title={cannotRunReason ?? "Save and run"}
+            className="rounded bg-emerald-600 px-3 py-1 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+          >
+            ▶ Run
           </button>
         </header>
 
@@ -303,18 +355,62 @@ function EditorInner({ workflow }: { workflow: WorkflowDetail }) {
           </div>
 
           {/* Right sidebar */}
-          <aside className="w-80 shrink-0 overflow-y-auto border-l border-neutral-200 p-4 dark:border-neutral-800">
-            {selected ? (
-              <ConfigPanel
-                key={selected.id}
-                node={selected}
-                issues={issuesByNode.get(selected.id) ?? []}
-                onChange={(key, value) => updateNodeData(selected.id, key, value)}
-                onDelete={() => deleteNode(selected.id)}
-              />
-            ) : (
-              <p className="text-sm text-neutral-500">Select a node to configure it.</p>
-            )}
+          <aside className="flex w-80 shrink-0 flex-col border-l border-neutral-200 dark:border-neutral-800">
+            <div className="flex border-b border-neutral-200 text-sm dark:border-neutral-800" role="tablist">
+              {(["node", "run"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === t}
+                  onClick={() => setTab(t)}
+                  className={
+                    "flex-1 py-2 " +
+                    (tab === t
+                      ? "border-b-2 border-neutral-900 font-semibold dark:border-neutral-100"
+                      : "text-neutral-500 hover:text-neutral-900 dark:hover:text-neutral-100")
+                  }
+                >
+                  {t === "node" ? "Node" : "Run"}
+                </button>
+              ))}
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              {tab === "node" &&
+                (selected ? (
+                  <ConfigPanel
+                    key={selected.id}
+                    node={selected}
+                    issues={issuesByNode.get(selected.id) ?? []}
+                    runState={progress?.nodes[selected.id]}
+                    onChange={(key, value) => updateNodeData(selected.id, key, value)}
+                    onDelete={() => deleteNode(selected.id)}
+                  />
+                ) : (
+                  <p className="text-sm text-neutral-500">Select a node to configure it.</p>
+                ))}
+              {tab === "run" && (
+                <RunPanel
+                  input={inputText}
+                  onInputChange={setInputText}
+                  onResetInput={() => setInputText(sampleInput())}
+                  inputError={inputError}
+                  canRun={!cannotRunReason}
+                  cannotRunReason={cannotRunReason}
+                  onRun={() => void startRun()}
+                  starting={run.starting}
+                  error={run.error}
+                  runId={run.runId}
+                  detail={run.detail}
+                  runs={run.runs}
+                  onSelectRun={run.select}
+                  onFocusNode={(id) => {
+                    focusNode(id);
+                    setTab("node");
+                  }}
+                />
+              )}
+            </div>
           </aside>
         </div>
       </div>
