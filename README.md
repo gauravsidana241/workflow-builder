@@ -6,6 +6,24 @@ run them on Temporal, and watch each node execute live.
 Node types: Trigger, Set Variable, If, For Each, Repeat, While, Code (JavaScript),
 HTTP Request, Delay, Log, Return.
 
+## Screenshots
+
+| Home page | Workflow builder |
+| --- | --- |
+| ![Workflows list](images/image1.png) | ![A complete workflow in the builder](images/image2.png) |
+
+Every run is also visible in the Temporal UI, which shows the DSL input, the
+result, and a timeline of each step. Here's the "Durable delay" example with
+the worker actually killed and restarted mid-run: while it's running, the
+20s delay is in progress and no result is available yet...
+
+![Temporal UI, workflow still running](images/image3.png)
+
+...and once the worker comes back and the run completes, the timeline shows
+the gap where it sat waiting with nothing running:
+
+![Temporal UI, completed timeline showing the restart gap](images/image4.png)
+
 ## How it fits together
 
 ```
